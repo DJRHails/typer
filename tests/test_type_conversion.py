@@ -1,5 +1,6 @@
 from enum import Enum
 from pathlib import Path
+import sys
 from typing import Any, List, Optional, Tuple
 
 import click
@@ -28,6 +29,26 @@ def test_optional():
     assert result.exit_code == 0
     assert "User: Camila" in result.output
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="The | operator for types was new in 3.10"
+)
+def test_union_type_optional():
+    app = typer.Typer()
+
+    @app.command()
+    def opt(user: str | None = None):
+        if user:
+            print(f"User: {user}")
+        else:
+            print("No user")
+
+    result = runner.invoke(app)
+    assert result.exit_code == 0
+    assert "No user" in result.output
+
+    result = runner.invoke(app, ["--user", "Camila"])
+    assert result.exit_code == 0
+    assert "User: Camila" in result.output
 
 def test_no_type():
     app = typer.Typer()

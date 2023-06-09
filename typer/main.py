@@ -35,6 +35,7 @@ from .models import (
     TyperInfo,
 )
 from .utils import get_params_from_function
+from ._compat_utils import get_args, get_origin, UNION_TYPES
 
 try:
     import rich
@@ -816,12 +817,13 @@ def get_click_param(
     is_tuple = False
     parameter_type: Any = None
     is_flag = None
-    origin = getattr(main_type, "__origin__", None)
+    origin = get_origin(main_type)
+    args = get_args(main_type)
     if origin is not None:
-        # Handle Optional[SomeType]
-        if origin is Union:
+        # Handle SomeType | None and Optional[SomeType]
+        if origin in UNION_TYPES:
             types = []
-            for type_ in main_type.__args__:
+            for type_ in args:
                 if type_ is NoneType:
                     continue
                 types.append(type_)
@@ -830,17 +832,13 @@ def get_click_param(
             origin = getattr(main_type, "__origin__", None)
         # Handle Tuples and Lists
         if lenient_issubclass(origin, List):
-            main_type = main_type.__args__[0]
-            assert not getattr(
-                main_type, "__origin__", None
-            ), "List types with complex sub-types are not currently supported"
+            main_type = args[0]
+            assert not get_origin(main_type), "List types with complex sub-types are not currently supported"
             is_list = True
         elif lenient_issubclass(origin, Tuple):  # type: ignore
             types = []
-            for type_ in main_type.__args__:
-                assert not getattr(
-                    type_, "__origin__", None
-                ), "Tuple types with complex sub-types are not currently supported"
+            for type_ in args:
+                assert not get_origin(type_), "Tuple types with complex sub-types are not currently supported"
                 types.append(
                     get_click_type(annotation=type_, parameter_info=parameter_info)
                 )
@@ -854,7 +852,7 @@ def get_click_param(
     if is_list:
         convertor = generate_list_convertor(convertor)
     if is_tuple:
-        convertor = generate_tuple_convertor(main_type.__args__)
+        convertor = generate_tuple_convertor(args)
     if isinstance(parameter_info, OptionInfo):
         if main_type is bool and not (parameter_info.is_flag is False):
             is_flag = True
